@@ -1,0 +1,32 @@
+services:
+  # Service 1: The Database
+  postgres:
+    image: postgres:15
+    container_name: sweetshop-db
+    environment:
+      POSTGRES_DB: sweetshop
+      POSTGRES_USER: naman
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432" # Maps container port to your machine
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # Service 2: Your Spring Boot App
+  app:
+    build: .
+    container_name: sweetshop-app
+    ports:
+      - "8080:8080" # Maps container port to your machine
+    depends_on:
+      - postgres
+    environment:
+      # OVERRIDE Database Config for Docker
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/sweetshop
+      SPRING_DATASOURCE_USERNAME: naman
+      SPRING_DATASOURCE_PASSWORD: password
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+
+# Persistent Storage for the DB
+volumes:
+  postgres_data:
