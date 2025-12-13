@@ -1,7 +1,9 @@
 package com.naman.SweetShop.controller;
 
+import com.naman.SweetShop.dto.LoginRequest;
 import com.naman.SweetShop.model.User;
 import com.naman.SweetShop.repo.UserRepository;
+import com.naman.SweetShop.service.AuthService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -16,10 +18,12 @@ public class AuthController {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final AuthService authService;
 
-    public AuthController(UserRepository userRepository, PasswordEncoder passwordEncoder) {
+    public AuthController(UserRepository userRepository, PasswordEncoder passwordEncoder, AuthService authService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
+        this.authService = authService;
     }
 
     @PostMapping("/register")
@@ -32,5 +36,11 @@ public class AuthController {
         userRepository.save(user);
 
         return ResponseEntity.status(HttpStatus.CREATED).body("user registered successfully");
+    }
+
+    @PostMapping("/login")
+    public ResponseEntity<String> login(@RequestBody LoginRequest loginRequest) {
+        String token = authService.login(loginRequest);
+        return ResponseEntity.ok(token);
     }
 }
