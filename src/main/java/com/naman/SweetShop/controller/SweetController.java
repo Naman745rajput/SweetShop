@@ -19,7 +19,7 @@ public class SweetController {
     }
 
     @PostMapping
-    public ResponseEntity<Sweet> addSweet(@ResponseBody Sweet sweet) {
+    public ResponseEntity<Sweet> addSweet(@RequestBody Sweet sweet) {
         Sweet newSweet = sweetService.addSweet(sweet);
         return ResponseEntity.created(URI.create("/api/sweets/" + newSweet.getId())).body(newSweet);
     }
