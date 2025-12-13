@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>The Sweet Shop</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background-color: #fce4ec; margin: 0; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+
+        /* Login Box Styles */
+        #login-section { background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); max-width: 400px; margin: 50px auto; text-align: center; }
+        input { padding: 10px; margin: 10px 0; width: 80%; border: 1px solid #ddd; border-radius: 4px; }
+        button { padding: 10px 20px; background-color: #e91e63; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; }
+        button:hover { background-color: #c2185b; }
+
+        /* Sweet Grid Styles */
+        #shop-section { display: none; } /* Hidden by default */
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 20px; }
+        .card { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); text-align: center; }
+        .price { color: #e91e63; font-weight: bold; font-size: 1.2em; }
+        .message { margin-top: 10px; padding: 10px; border-radius: 4px; display: none; }
+        .success { background-color: #d4edda; color: #155724; }
+        .error { background-color: #f8d7da; color: #721c24; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div id="login-section">
+        <h2>Welcome to Sweet Shop</h2>
+        <input type="text" id="username" placeholder="Username (e.g. bob)">
+        <input type="password" id="password" placeholder="Password">
+        <br>
+        <button onclick="login()">Login</button>
+        <div id="login-msg" class="message"></div>
+    </div>
+
+    <div id="shop-section">
+        <div class="header">
+            <h1>🍬 Our Sweets</h1>
+            <button onclick="logout()" style="background-color: #555;">Logout</button>
+        </div>
+        <div id="sweets-grid" class="grid">
+        </div>
+        <div id="order-msg" class="message" style="text-align: center; margin-top: 20px;"></div>
+    </div>
+</div>
+
+<script>
+    let authToken = '';
+
+    // 1. LOGIN FUNCTION
+    async function login() {
+        const username = document.getElementById('username').value;
+        const password = document.getElementById('password').value;
+        const msgDiv = document.getElementById('login-msg');
+
+        try {
+            const response = await fetch('/api/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+
+            if (response.ok) {
+                // Success! Save token and show shop
+                authToken = await response.text(); // The token string
+                document.getElementById('login-section').style.display = 'none';
+                document.getElementById('shop-section').style.display = 'block';
+                loadSweets(); // Fetch data
+            } else {
+                showMsg(msgDiv, 'Invalid Credentials', false);
+            }
+        } catch (error) {
+            showMsg(msgDiv, 'Server Error', false);
+        }
+    }
+
+    // 2. LOAD SWEETS
+    async function loadSweets() {
+        const grid = document.getElementById('sweets-grid');
+        grid.innerHTML = '<p>Loading...</p>';
+
+        const response = await fetch('/api/sweets'); // Public endpoint
+        const sweets = await response.json();
+
+        grid.innerHTML = ''; // Clear loading
+        sweets.forEach(sweet => {
+            const card = document.createElement('div');
+            card.className = 'card';
+            card.innerHTML = `
+                <h3>${sweet.name}</h3>
+                <p>${sweet.description || 'Delicious treat'}</p>
+                <div class="price">$${sweet.price}</div>
+                <br>
+                <button onclick="orderSweet(${sweet.id})">Buy Now</button>
+            `;
+            grid.appendChild(card);
+        });
+    }
+
+    // 3. PLACE ORDER
+    async function orderSweet(sweetId) {
+        const msgDiv = document.getElementById('order-msg');
+
+        try {
+            const response = await fetch('/api/orders', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + authToken // <--- Sending the Token!
+                },
+                body: JSON.stringify({ sweetId: sweetId, quantity: 1 })
+            });
+
+            if (response.ok) {
+                showMsg(msgDiv, 'Order Placed Successfully! 🎉', true);
+            } else {
+                showMsg(msgDiv, 'Failed to place order.', false);
+            }
+        } catch (error) {
+            showMsg(msgDiv, 'Error connecting to server.', false);
+        }
+    }
+
+    function logout() {
+        location.reload();
+    }
+
+    function showMsg(element, text, isSuccess) {
+        element.textContent = text;
+        element.className = 'message ' + (isSuccess ? 'success' : 'error');
+        element.style.display = 'block';
+        setTimeout(() => element.style.display = 'none', 3000);
+    }
+</script>
+
+</body>
+</html>
