@@ -5,20 +5,34 @@
     <title>The Sweet Shop</title>
     <style>
         body { font-family: 'Segoe UI', sans-serif; background-color: #fce4ec; margin: 0; padding: 20px; }
-        .container { max-width: 800px; margin: 0 auto; }
+        .container { max-width: 900px; margin: 0 auto; }
 
-        /* Login Box Styles */
-        #login-section { background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); max-width: 400px; margin: 50px auto; text-align: center; }
-        input { padding: 10px; margin: 10px 0; width: 80%; border: 1px solid #ddd; border-radius: 4px; }
+        /* Sections */
+        .section { background: white; padding: 25px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .hidden { display: none; }
+
+        /* Login */
+        #login-section { max-width: 400px; margin: 50px auto; text-align: center; }
+
+        /* Admin Panel */
+        #admin-section { border-left: 5px solid #e91e63; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+
+        /* Inputs & Buttons */
+        input, textarea { padding: 10px; width: 100%; box-sizing: border-box; border: 1px solid #ddd; border-radius: 4px; }
         button { padding: 10px 20px; background-color: #e91e63; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; }
         button:hover { background-color: #c2185b; }
+        button.secondary { background-color: #555; }
 
-        /* Sweet Grid Styles */
-        #shop-section { display: none; } /* Hidden by default */
-        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 20px; }
-        .card { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); text-align: center; }
-        .price { color: #e91e63; font-weight: bold; font-size: 1.2em; }
+        /* Grid */
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 20px; margin-top: 20px; }
+        .card { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); text-align: center; transition: transform 0.2s; }
+        .card:hover { transform: translateY(-5px); }
+        .card img { max-width: 100%; height: 150px; object-fit: cover; border-radius: 4px; }
+        .price { color: #e91e63; font-weight: bold; font-size: 1.2em; margin: 10px 0; }
+
+        /* Messages */
         .message { margin-top: 10px; padding: 10px; border-radius: 4px; display: none; }
         .success { background-color: #d4edda; color: #155724; }
         .error { background-color: #f8d7da; color: #721c24; }
@@ -27,30 +41,54 @@
 <body>
 
 <div class="container">
-    <div id="login-section">
-        <h2>Welcome to Sweet Shop</h2>
-        <input type="text" id="username" placeholder="Username (e.g. bob)">
-        <input type="password" id="password" placeholder="Password">
-        <br>
+
+    <div id="login-section" class="section">
+        <h2>🍬 Sweet Shop Login</h2>
+        <div class="form-group">
+            <input type="text" id="username" placeholder="Username">
+        </div>
+        <div class="form-group">
+            <input type="password" id="password" placeholder="Password">
+        </div>
         <button onclick="login()">Login</button>
         <div id="login-msg" class="message"></div>
     </div>
 
-    <div id="shop-section">
-        <div class="header">
-            <h1>🍬 Our Sweets</h1>
-            <button onclick="logout()" style="background-color: #555;">Logout</button>
+    <div id="admin-section" class="section hidden">
+        <h3>⚡ Admin Dashboard: Add New Sweet</h3>
+        <div class="form-group">
+            <label>Name:</label>
+            <input type="text" id="sweetName">
         </div>
-        <div id="sweets-grid" class="grid">
+        <div class="form-group">
+            <label>Price:</label>
+            <input type="number" step="0.01" id="sweetPrice">
         </div>
-        <div id="order-msg" class="message" style="text-align: center; margin-top: 20px;"></div>
+        <div class="form-group">
+            <label>Image URL:</label>
+            <input type="text" id="sweetImage" placeholder="http://...">
+        </div>
+        <button onclick="addSweet()">Add Product</button>
+        <div id="admin-msg" class="message"></div>
     </div>
+
+    <div id="shop-section" class="hidden">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h1>Our Sweets</h1>
+            <button class="secondary" onclick="logout()">Logout</button>
+        </div>
+
+        <div id="sweets-grid" class="grid"></div>
+        <div id="order-msg" class="message" style="text-align: center;"></div>
+    </div>
+
 </div>
 
 <script>
     let authToken = '';
+    let userRole = '';
 
-    // 1. LOGIN FUNCTION
+    // --- 1. LOGIN ---
     async function login() {
         const username = document.getElementById('username').value;
         const password = document.getElementById('password').value;
@@ -64,75 +102,104 @@
             });
 
             if (response.ok) {
-                // Success! Save token and show shop
-                authToken = await response.text(); // The token string
-                document.getElementById('login-section').style.display = 'none';
-                document.getElementById('shop-section').style.display = 'block';
-                loadSweets(); // Fetch data
+                const data = await response.json(); // Now we get JSON!
+                authToken = data.token;
+                userRole = data.role;
+
+                // UI Updates
+                document.getElementById('login-section').classList.add('hidden');
+                document.getElementById('shop-section').classList.remove('hidden');
+
+                // CHECK ROLE: If Admin, show the dashboard
+                if (userRole === 'ROLE_ADMIN') {
+                    document.getElementById('admin-section').classList.remove('hidden');
+                }
+
+                loadSweets();
             } else {
                 showMsg(msgDiv, 'Invalid Credentials', false);
             }
         } catch (error) {
-            showMsg(msgDiv, 'Server Error', false);
+            console.error(error);
+            showMsg(msgDiv, 'Login failed', false);
         }
     }
 
-    // 2. LOAD SWEETS
+    // --- 2. ADD SWEET (Admin Only) ---
+    async function addSweet() {
+        const name = document.getElementById('sweetName').value;
+        const price = document.getElementById('sweetPrice').value;
+        const imageUrl = document.getElementById('sweetImage').value;
+        const msgDiv = document.getElementById('admin-msg');
+
+        try {
+            const response = await fetch('/api/sweets', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + authToken
+                },
+                body: JSON.stringify({ name, price, imageUrl })
+            });
+
+            if (response.ok) {
+                showMsg(msgDiv, 'Sweet Added!', true);
+                loadSweets(); // Refresh the list
+                // Clear inputs
+                document.getElementById('sweetName').value = '';
+                document.getElementById('sweetPrice').value = '';
+            } else {
+                showMsg(msgDiv, 'Failed (Are you Admin?)', false);
+            }
+        } catch (error) {
+            showMsg(msgDiv, 'Error adding sweet', false);
+        }
+    }
+
+    // --- 3. LOAD & DISPLAY ---
     async function loadSweets() {
         const grid = document.getElementById('sweets-grid');
         grid.innerHTML = '<p>Loading...</p>';
-
-        const response = await fetch('/api/sweets'); // Public endpoint
+        const response = await fetch('/api/sweets');
         const sweets = await response.json();
 
-        grid.innerHTML = ''; // Clear loading
+        grid.innerHTML = '';
         sweets.forEach(sweet => {
             const card = document.createElement('div');
             card.className = 'card';
+            // Use placeholder image if none provided
+            const img = sweet.imageUrl || 'https://via.placeholder.com/150?text=No+Image';
+
             card.innerHTML = `
+                <img src="${img}" alt="${sweet.name}">
                 <h3>${sweet.name}</h3>
-                <p>${sweet.description || 'Delicious treat'}</p>
                 <div class="price">$${sweet.price}</div>
-                <br>
                 <button onclick="orderSweet(${sweet.id})">Buy Now</button>
             `;
             grid.appendChild(card);
         });
     }
 
-    // 3. PLACE ORDER
-    async function orderSweet(sweetId) {
+    // --- 4. ORDER ---
+    async function orderSweet(id) {
         const msgDiv = document.getElementById('order-msg');
+        const response = await fetch('/api/orders', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken },
+            body: JSON.stringify({ sweetId: id, quantity: 1 })
+        });
 
-        try {
-            const response = await fetch('/api/orders', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': 'Bearer ' + authToken // <--- Sending the Token!
-                },
-                body: JSON.stringify({ sweetId: sweetId, quantity: 1 })
-            });
-
-            if (response.ok) {
-                showMsg(msgDiv, 'Order Placed Successfully! 🎉', true);
-            } else {
-                showMsg(msgDiv, 'Failed to place order.', false);
-            }
-        } catch (error) {
-            showMsg(msgDiv, 'Error connecting to server.', false);
-        }
+        if (response.ok) showMsg(msgDiv, 'Order Placed!', true);
+        else showMsg(msgDiv, 'Order Failed', false);
     }
 
-    function logout() {
-        location.reload();
-    }
+    function logout() { location.reload(); }
 
-    function showMsg(element, text, isSuccess) {
-        element.textContent = text;
-        element.className = 'message ' + (isSuccess ? 'success' : 'error');
-        element.style.display = 'block';
-        setTimeout(() => element.style.display = 'none', 3000);
+    function showMsg(el, text, success) {
+        el.textContent = text;
+        el.className = 'message ' + (success ? 'success' : 'error');
+        el.style.display = 'block';
+        setTimeout(() => el.style.display = 'none', 3000);
     }
 </script>
 
