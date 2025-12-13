@@ -4,6 +4,7 @@ import com.naman.SweetShop.security.CustomUserDetailsService;
 import com.naman.SweetShop.security.JwtAuthenticationFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
@@ -33,8 +34,12 @@ public class SecurityConfig {
         http
                 .csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(auth -> auth
+
                         .requestMatchers("/api/auth/**").permitAll()
-                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/sweets/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/sweets/**").permitAll()
+
+                        .requestMatchers(HttpMethod.POST, "/api/sweets/**").hasRole("ADMIN")
+                        .requestMatchers("/api/orders/**").authenticated()
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(session -> session

@@ -34,6 +34,11 @@ public class AuthService {
         if (userRepository.findByUsername(user.getUsername()).isPresent()) {
             throw new RuntimeException("Username already exists");
         }
+
+        if(user.getRole() == null || user.getRole().isEmpty()) {
+            user.setRole("USER"); // Default role
+        }
+
         user.setPassword(passwordEncoder.encode(user.getPassword()));
         return userRepository.save(user);
     }
