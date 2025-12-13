@@ -19,20 +19,45 @@ class SweetShopApplicationTests {
 	@Autowired
 	private MockMvc mockMvc;
 
+
 	@Test
-	public void shouldRegisterNewUser() throws Exception {
-		String newUserJson = """
-				{
-					"username": "candyman",
-					"password": "password123",
-					"role": "USER"
-				}
-			""";
+	void shouldLoginAndReturnToken() throws Exception {
+
+		String uniqueUser = "login_test_" + System.currentTimeMillis();
+		String password = "password123";
+
+		String registerJson = String.format("""
+            {
+                "username": "%s",
+                "password": "%s",
+                "role": "USER"
+            }
+        """, uniqueUser, password);
+
+
 		mockMvc.perform(post("/api/auth/register")
-						.contentType(MediaType.APPLICATION_JSON)
-						.content(newUserJson))
+						.contentType("application/json")
+						.content(registerJson))
 				.andExpect(status().isCreated());
 
+		String loginJson = String.format("""
+            {
+                "username": "%s",
+                "password": "%s"
+            }
+        """, uniqueUser, password);
+
+
+		mockMvc.perform(post("/api/auth/login")
+						.contentType("application/json")
+						.content(loginJson))
+				.andExpect(status().isOk())
+				.andExpect(result -> {
+					String responseToken = result.getResponse().getContentAsString();
+					if (responseToken.isEmpty()) {
+						throw new AssertionError("Token response was empty!");
+					}
+				});
 	}
 
 }
