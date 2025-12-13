@@ -33,4 +33,14 @@ public class OrderController {
     public ResponseEntity<List<Order>> getMyOrders(Principal principal) {
         return ResponseEntity.ok(orderService.getUserOrders(principal.getName()));
     }
+
+    @GetMapping("/all")
+    public ResponseEntity<List<Order>> getAllOrders() {
+        return ResponseEntity.ok(orderService.getAllOrders());
+    }
+
+    @PostMapping("/checkout")
+    public ResponseEntity<List<Order>> checkout(@RequestBody List<OrderRequest> cartItems, Principal principal) {
+        return ResponseEntity.ok(orderService.checkout(principal.getName(), cartItems));
+    }
 }

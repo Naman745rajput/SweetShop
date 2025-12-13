@@ -1,5 +1,6 @@
 package com.naman.SweetShop.service;
 
+import com.naman.SweetShop.dto.OrderRequest;
 import com.naman.SweetShop.model.Order;
 import com.naman.SweetShop.model.Sweet;
 import com.naman.SweetShop.model.User;
@@ -10,6 +11,7 @@ import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -41,5 +43,20 @@ public class OrderService {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new RuntimeException("User not found"));
         return orderRepository.findByUser(user);
+    }
+
+    public List<Order> getAllOrders() {
+        return orderRepository.findAll();
+    }
+
+    @Transactional
+    public List<Order> checkout(String username, List<OrderRequest> cartItems) {
+        List<Order> orders = new ArrayList<>();
+
+        for (OrderRequest item : cartItems) {
+            Order order = placeOrder(username, item.getSweetId(), item.getQuantity());
+            orders.add(order);
+        }
+        return orders;
     }
 }

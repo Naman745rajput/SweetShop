@@ -55,27 +55,43 @@
     </div>
 
     <div id="admin-section" class="section hidden">
-        <h3>⚡ Admin Dashboard: Add New Sweet</h3>
-        <div class="form-group">
-            <label>Name:</label>
-            <input type="text" id="sweetName">
+        <h3>⚡ Admin Dashboard</h3>
+
+        <div style="border-bottom: 1px solid #ddd; padding-bottom: 20px; margin-bottom: 20px;">
+            <h4>Add New Sweet</h4>
+            <div class="form-group"><input type="text" id="sweetName" placeholder="Name"></div>
+            <div class="form-group"><input type="number" step="0.01" id="sweetPrice" placeholder="Price"></div>
+            <div class="form-group"><input type="text" id="sweetImage" placeholder="Image URL"></div>
+            <button onclick="addSweet()">Add Product</button>
+            <div id="admin-msg" class="message"></div>
         </div>
-        <div class="form-group">
-            <label>Price:</label>
-            <input type="number" step="0.01" id="sweetPrice">
+
+        <div>
+            <h4>Store Management</h4>
+            <button onclick="loadAllOrders()" style="background-color: #673ab7;">View All Customer Orders</button>
+            <div id="admin-orders-list" style="margin-top: 15px;"></div>
         </div>
-        <div class="form-group">
-            <label>Image URL:</label>
-            <input type="text" id="sweetImage" placeholder="http://...">
-        </div>
-        <button onclick="addSweet()">Add Product</button>
-        <div id="admin-msg" class="message"></div>
     </div>
 
     <div id="shop-section" class="hidden">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
             <h1>Our Sweets</h1>
-            <button class="secondary" onclick="logout()">Logout</button>
+            <div>
+                <button onclick="toggleCart()" style="background-color: #ff9800; margin-right: 10px;">
+                    🛒 Cart (<span id="cart-count">0</span>)
+                </button>
+                <button class="secondary" onclick="logout()">Logout</button>
+            </div>
+        </div>
+
+        <div id="cart-panel" style="background: #fff3e0; padding: 15px; border: 1px solid #ffb74d; border-radius: 8px; margin-bottom: 20px; display: none;">
+            <h3>🛒 Your Shopping Cart</h3>
+            <div id="cart-items-list">Your cart is empty.</div>
+            <h4 style="text-align: right;">Total: $<span id="cart-total">0.00</span></h4>
+            <div style="text-align: right;">
+                <button onclick="clearCart()" class="secondary">Clear</button>
+                <button onclick="checkout()" style="background-color: #4caf50;">✅ Checkout Now</button>
+            </div>
         </div>
 
         <div id="sweets-grid" class="grid"></div>
@@ -87,6 +103,7 @@
 <script>
     let authToken = '';
     let userRole = '';
+    let cart = []; // <-- THE SHOPPING CART
 
     // --- 1. LOGIN ---
     async function login() {
@@ -102,15 +119,13 @@
             });
 
             if (response.ok) {
-                const data = await response.json(); // Now we get JSON!
+                const data = await response.json();
                 authToken = data.token;
                 userRole = data.role;
 
-                // UI Updates
                 document.getElementById('login-section').classList.add('hidden');
                 document.getElementById('shop-section').classList.remove('hidden');
 
-                // CHECK ROLE: If Admin, show the dashboard
                 if (userRole === 'ROLE_ADMIN') {
                     document.getElementById('admin-section').classList.remove('hidden');
                 }
@@ -125,38 +140,7 @@
         }
     }
 
-    // --- 2. ADD SWEET (Admin Only) ---
-    async function addSweet() {
-        const name = document.getElementById('sweetName').value;
-        const price = document.getElementById('sweetPrice').value;
-        const imageUrl = document.getElementById('sweetImage').value;
-        const msgDiv = document.getElementById('admin-msg');
-
-        try {
-            const response = await fetch('/api/sweets', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': 'Bearer ' + authToken
-                },
-                body: JSON.stringify({ name, price, imageUrl })
-            });
-
-            if (response.ok) {
-                showMsg(msgDiv, 'Sweet Added!', true);
-                loadSweets(); // Refresh the list
-                // Clear inputs
-                document.getElementById('sweetName').value = '';
-                document.getElementById('sweetPrice').value = '';
-            } else {
-                showMsg(msgDiv, 'Failed (Are you Admin?)', false);
-            }
-        } catch (error) {
-            showMsg(msgDiv, 'Error adding sweet', false);
-        }
-    }
-
-    // --- 3. LOAD & DISPLAY ---
+    // --- 2. LOAD SWEETS (Correct Version) ---
     async function loadSweets() {
         const grid = document.getElementById('sweets-grid');
         grid.innerHTML = '<p>Loading...</p>';
@@ -167,30 +151,166 @@
         sweets.forEach(sweet => {
             const card = document.createElement('div');
             card.className = 'card';
-            // Use placeholder image if none provided
-            const img = sweet.imageUrl || 'https://via.placeholder.com/150?text=No+Image';
+            const img = sweet.imageUrl || 'https://via.placeholder.com/150';
 
+            // This button now adds to Cart!
             card.innerHTML = `
                 <img src="${img}" alt="${sweet.name}">
                 <h3>${sweet.name}</h3>
                 <div class="price">$${sweet.price}</div>
-                <button onclick="orderSweet(${sweet.id})">Buy Now</button>
+                <button onclick="addToCart(${sweet.id}, '${sweet.name}', ${sweet.price})">Add to Cart</button>
             `;
             grid.appendChild(card);
         });
     }
 
-    // --- 4. ORDER ---
-    async function orderSweet(id) {
-        const msgDiv = document.getElementById('order-msg');
-        const response = await fetch('/api/orders', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken },
-            body: JSON.stringify({ sweetId: id, quantity: 1 })
-        });
+    // --- 3. CART FUNCTIONS ---
+    function addToCart(id, name, price) {
+        const existingItem = cart.find(item => item.sweetId === id);
+        if (existingItem) {
+            existingItem.quantity++;
+        } else {
+            cart.push({ sweetId: id, name: name, price: price, quantity: 1 });
+        }
+        updateCartUI();
+    }
 
-        if (response.ok) showMsg(msgDiv, 'Order Placed!', true);
-        else showMsg(msgDiv, 'Order Failed', false);
+    function updateCartUI() {
+        const totalCount = cart.reduce((sum, item) => sum + item.quantity, 0);
+        document.getElementById('cart-count').innerText = totalCount;
+
+        const listDiv = document.getElementById('cart-items-list');
+        const totalSpan = document.getElementById('cart-total');
+
+        if (cart.length === 0) {
+            listDiv.innerHTML = 'Your cart is empty.';
+            totalSpan.innerText = '0.00';
+            return;
+        }
+
+        let html = '<ul style="padding-left: 20px;">';
+        let totalPrice = 0;
+
+        cart.forEach((item, index) => {
+            const itemTotal = item.price * item.quantity;
+            totalPrice += itemTotal;
+            html += `<li>
+                <strong>${item.name}</strong> x ${item.quantity}
+                - $${itemTotal.toFixed(2)}
+                <button onclick="removeFromCart(${index})" style="padding: 2px 5px; font-size: 0.8em; background: #e91e63; margin-left: 10px;">x</button>
+            </li>`;
+        });
+        html += '</ul>';
+
+        listDiv.innerHTML = html;
+        totalSpan.innerText = totalPrice.toFixed(2);
+    }
+
+    function removeFromCart(index) {
+        cart.splice(index, 1);
+        updateCartUI();
+    }
+
+    function toggleCart() {
+        const panel = document.getElementById('cart-panel');
+        panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+    }
+
+    function clearCart() {
+        cart = [];
+        updateCartUI();
+    }
+
+    // --- 4. CHECKOUT ---
+    async function checkout() {
+        if (cart.length === 0) {
+            alert("Cart is empty!");
+            return;
+        }
+        const msgDiv = document.getElementById('order-msg');
+        const payload = cart.map(item => ({ sweetId: item.sweetId, quantity: item.quantity }));
+
+        try {
+            const response = await fetch('/api/orders/checkout', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken },
+                body: JSON.stringify(payload)
+            });
+
+            if (response.ok) {
+                showMsg(msgDiv, 'Checkout Successful! 🎉', true);
+                clearCart();
+                document.getElementById('cart-panel').style.display = 'none';
+            } else {
+                showMsg(msgDiv, 'Checkout Failed.', false);
+            }
+        } catch (error) {
+            showMsg(msgDiv, 'Server Error', false);
+        }
+    }
+
+    // --- 5. ADMIN FUNCTIONS ---
+    async function addSweet() {
+        const name = document.getElementById('sweetName').value;
+        const price = document.getElementById('sweetPrice').value;
+        const imageUrl = document.getElementById('sweetImage').value;
+        const msgDiv = document.getElementById('admin-msg');
+
+        try {
+            const response = await fetch('/api/sweets', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken },
+                body: JSON.stringify({ name, price, imageUrl })
+            });
+
+            if (response.ok) {
+                showMsg(msgDiv, 'Sweet Added!', true);
+                loadSweets();
+                document.getElementById('sweetName').value = '';
+                document.getElementById('sweetPrice').value = '';
+            } else {
+                showMsg(msgDiv, 'Failed (Are you Admin?)', false);
+            }
+        } catch (error) {
+            showMsg(msgDiv, 'Error adding sweet', false);
+        }
+    }
+
+    async function loadAllOrders() {
+        const listDiv = document.getElementById('admin-orders-list');
+        listDiv.innerHTML = 'Loading orders...';
+
+        try {
+            const response = await fetch('/api/orders/all', {
+                headers: { 'Authorization': 'Bearer ' + authToken }
+            });
+
+            if (response.ok) {
+                const orders = await response.json();
+                if (orders.length === 0) {
+                    listDiv.innerHTML = '<p>No orders placed yet.</p>';
+                    return;
+                }
+                let html = '<table border="1" style="width:100%; border-collapse: collapse;">';
+                html += '<tr style="background:#eee;"><th>Order ID</th><th>User</th><th>Item</th><th>Qty</th><th>Total</th><th>Date</th></tr>';
+                orders.forEach(order => {
+                    html += `<tr>
+                        <td style="padding:8px;">#${order.id}</td>
+                        <td style="padding:8px;"><strong>${order.user.username}</strong></td>
+                        <td style="padding:8px;">${order.sweet.name}</td>
+                        <td style="padding:8px;">${order.quantity}</td>
+                        <td style="padding:8px;">$${order.totalPrice}</td>
+                        <td style="padding:8px; font-size:0.8em;">${new Date(order.orderDate).toLocaleString()}</td>
+                    </tr>`;
+                });
+                html += '</table>';
+                listDiv.innerHTML = html;
+            } else {
+                listDiv.innerHTML = '<p style="color:red">Failed to load orders.</p>';
+            }
+        } catch (error) {
+            listDiv.innerHTML = '<p style="color:red">Server Error</p>';
+        }
     }
 
     function logout() { location.reload(); }
