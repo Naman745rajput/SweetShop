@@ -34,4 +34,10 @@ public class SweetController {
         return ResponseEntity.ok(sweetService.getSweetById(id));
     }
 
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteSweet(@PathVariable Long id) {
+        sweetService.deleteSweet(id);
+        return ResponseEntity.noContent().build();
+    }
+
 }

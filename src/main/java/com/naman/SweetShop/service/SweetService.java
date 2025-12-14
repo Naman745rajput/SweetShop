@@ -28,4 +28,8 @@ public class SweetService {
         return sweetRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Sweet not found with id: " + id));
     }
+
+    public void deleteSweet(Long id) {
+        sweetRepository.deleteById(id);
+    }
 }

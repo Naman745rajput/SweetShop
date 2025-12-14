@@ -1,13 +1,18 @@
 package com.naman.SweetShop;
 
+import com.naman.SweetShop.model.Sweet;
 import jakarta.transaction.Transactional;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
+import static java.nio.file.Files.delete;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -18,6 +23,8 @@ class SweetShopApplicationTests {
 
 	@Autowired
 	private MockMvc mockMvc;
+    @Autowired
+    private SweetRepository sweetRepository;
 
 
 	@Test
@@ -58,6 +65,22 @@ class SweetShopApplicationTests {
 						throw new AssertionError("Token response was empty!");
 					}
 				});
+	}
+
+	@Test
+	@WithMockUser(username = "boss" , roles = {"ADMIN"})
+	void testDeleteSweet() throws Exception {
+
+		Sweet sweet = new Sweet();
+		sweet.setName("Delete Me");
+		sweet.setPrice(1.00);
+		sweet = sweetRepository.save(sweet);
+
+		mockMvc.perform(delete("/api/sweets/" + sweet.getId())
+						.with(csrf()))
+				.andExpect(status().isNoContent());
+
+		assertFalse(sweetRepository.findById(sweet.getId()).isPresent());
 	}
 
 }

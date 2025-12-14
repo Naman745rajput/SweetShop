@@ -51,7 +51,31 @@
             <input type="password" id="password" placeholder="Password">
         </div>
         <button onclick="login()">Login</button>
+
+        <p style="margin-top: 15px; font-size: 0.9em;">
+            Don't have an account?
+            <a href="#" onclick="showRegister()" style="color: #e91e63; font-weight: bold;">Register here</a>
+        </p>
+
         <div id="login-msg" class="message"></div>
+    </div>
+
+    <div id="register-section" class="section hidden" style="max-width: 400px; margin: 50px auto; text-align: center;">
+        <h2>📝 Create Account</h2>
+        <div class="form-group">
+            <input type="text" id="reg-username" placeholder="Choose a Username">
+        </div>
+        <div class="form-group">
+            <input type="password" id="reg-password" placeholder="Choose a Password">
+        </div>
+        <button onclick="register()">Sign Up</button>
+
+        <p style="margin-top: 15px; font-size: 0.9em;">
+            Already have an account?
+            <a href="#" onclick="showLogin()" style="color: #e91e63; font-weight: bold;">Login here</a>
+        </p>
+
+        <div id="reg-msg" class="message"></div>
     </div>
 
     <div id="admin-section" class="section hidden">
@@ -140,28 +164,120 @@
         }
     }
 
+    // --- UI TOGGLES ---
+    function showRegister() {
+        document.getElementById('login-section').classList.add('hidden');
+        document.getElementById('register-section').classList.remove('hidden');
+        clearMessages();
+    }
+
+    function showLogin() {
+        document.getElementById('register-section').classList.add('hidden');
+        document.getElementById('login-section').classList.remove('hidden');
+        clearMessages();
+    }
+
+    function clearMessages() {
+        document.getElementById('login-msg').style.display = 'none';
+        document.getElementById('reg-msg').style.display = 'none';
+    }
+
+    // --- REGISTER FUNCTION ---
+    async function register() {
+        const username = document.getElementById('reg-username').value;
+        const password = document.getElementById('reg-password').value;
+        const msgDiv = document.getElementById('reg-msg');
+
+        if(!username || !password) {
+            showMsg(msgDiv, "Please fill all fields", false);
+            return;
+        }
+
+        try {
+            // We hardcode ROLE_USER so people can't register as Admin from the UI
+            const response = await fetch('/api/auth/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    username: username,
+                    password: password,
+                    role: "ROLE_USER"
+                })
+            });
+
+            if (response.ok) {
+                // Success!
+                alert("Registration Successful! Please Login.");
+                showLogin(); // Switch back to login screen
+                // Optional: Pre-fill the login username
+                document.getElementById('username').value = username;
+            } else {
+                showMsg(msgDiv, 'Username already exists', false);
+            }
+        } catch (error) {
+            console.error(error);
+            showMsg(msgDiv, 'Registration failed', false);
+        }
+    }
+
     // --- 2. LOAD SWEETS (Correct Version) ---
     async function loadSweets() {
         const grid = document.getElementById('sweets-grid');
         grid.innerHTML = '<p>Loading...</p>';
-        const response = await fetch('/api/sweets');
-        const sweets = await response.json();
 
-        grid.innerHTML = '';
-        sweets.forEach(sweet => {
-            const card = document.createElement('div');
-            card.className = 'card';
-            const img = sweet.imageUrl || 'https://via.placeholder.com/150';
+        try {
+            const response = await fetch('/api/sweets');
+            const sweets = await response.json();
 
-            // This button now adds to Cart!
-            card.innerHTML = `
-                <img src="${img}" alt="${sweet.name}">
-                <h3>${sweet.name}</h3>
-                <div class="price">$${sweet.price}</div>
-                <button onclick="addToCart(${sweet.id}, '${sweet.name}', ${sweet.price})">Add to Cart</button>
-            `;
-            grid.appendChild(card);
+            grid.innerHTML = '';
+            sweets.forEach(sweet => {
+                const card = document.createElement('div');
+                card.className = 'card';
+                const img = sweet.imageUrl || 'https://via.placeholder.com/150';
+
+                // Base Card HTML
+                let cardHtml = `
+                    <img src="${img}" alt="${sweet.name}">
+                    <h3>${sweet.name}</h3>
+                    <div class="price">$${sweet.price}</div>
+                `;
+
+                // LOGIC: Show different buttons based on Role
+                if (userRole === 'ROLE_ADMIN') {
+                    // Admin gets a DELETE button
+                    cardHtml += `
+                        <button onclick="deleteSweet(${sweet.id})" style="background-color: #d32f2f;">🗑️ Delete</button>
+                    `;
+                } else {
+                    // Normal User gets ADD TO CART
+                    cardHtml += `
+                        <button onclick="addToCart(${sweet.id}, '${sweet.name}', ${sweet.price})">Add to Cart</button>
+                    `;
+                }
+
+                card.innerHTML = cardHtml;
+                grid.appendChild(card);
+            });
+        } catch (error) {
+            console.error("Error loading sweets:", error);
+        }
+    }
+
+    // --- NEW: DELETE FUNCTION ---
+    async function deleteSweet(id) {
+        if(!confirm("Are you sure you want to delete this sweet?")) return;
+
+        const response = await fetch('/api/sweets/' + id, {
+            method: 'DELETE',
+            headers: { 'Authorization': 'Bearer ' + authToken }
         });
+
+        if (response.ok) {
+            alert("Sweet deleted!");
+            loadSweets(); // Refresh the grid
+        } else {
+            alert("Failed to delete (Are you Admin?)");
+        }
     }
 
     // --- 3. CART FUNCTIONS ---
