@@ -83,9 +83,19 @@
 
         <div style="border-bottom: 1px solid #ddd; padding-bottom: 20px; margin-bottom: 20px;">
             <h4>Add New Sweet</h4>
-            <div class="form-group"><input type="text" id="sweetName" placeholder="Name"></div>
-            <div class="form-group"><input type="number" step="0.01" id="sweetPrice" placeholder="Price"></div>
-            <div class="form-group"><input type="text" id="sweetImage" placeholder="Image URL"></div>
+            <div class="form-group">
+                <input type="text" id="sweet-name" placeholder="Name">
+            </div>
+            <div class="form-group">
+                <input type="number" step="0.01" id="sweet-price" placeholder="Price ($)">
+            </div>
+            <div class="form-group">
+                <input type="number" id="sweet-quantity" placeholder="Quantity (Stock)" value="50">
+            </div>
+            <div class="form-group">
+                <input type="text" id="sweet-image" placeholder="Image URL">
+            </div>
+
             <button onclick="addSweet()">Add Product</button>
             <div id="admin-msg" class="message"></div>
         </div>
@@ -118,8 +128,40 @@
             </div>
         </div>
 
+        <div style="margin-bottom: 20px; display: flex; gap: 10px; align-items: center;">
+            <input type="text" id="search-box" placeholder="Search for cakes, cookies..."
+                   style="padding: 10px; width: 100%; max-width: 400px; border: 2px solid #ddd; border-radius: 25px;">
+            <button onclick="searchSweets()" style="background-color: #2196F3; border-radius: 25px;">🔍 Search</button>
+            <button onclick="clearSearch()" class="secondary" style="border-radius: 25px;">Clear</button>
+        </div>
+
         <div id="sweets-grid" class="grid"></div>
         <div id="order-msg" class="message" style="text-align: center;"></div>
+    </div>
+
+    <div id="edit-modal" class="hidden" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); display:none; justify-content:center; align-items:center; z-index: 1000;">
+        <div style="background:white; padding:25px; border-radius:10px; width:300px; text-align:center; box-shadow: 0 4px 15px rgba(0,0,0,0.2);">
+            <h3>✏️ Edit Sweet</h3>
+            <input type="hidden" id="edit-id">
+
+            <div class="form-group">
+                <input type="text" id="edit-name" placeholder="Name">
+            </div>
+
+            <div class="form-group">
+                <input type="text" id="edit-category" placeholder="Category (e.g. Cakes)">
+            </div>
+
+            <div class="form-group">
+                <input type="number" step="0.01" id="edit-price" placeholder="Price">
+            </div>
+            <div class="form-group">
+                <input type="number" id="edit-quantity" placeholder="Stock Quantity">
+            </div>
+
+            <button onclick="submitEdit()" style="width: 100%; margin-top: 10px;">💾 Save Changes</button>
+            <button onclick="closeEditModal()" class="secondary" style="width: 100%; margin-top: 10px;">Cancel</button>
+        </div>
     </div>
 
 </div>
@@ -221,45 +263,137 @@
     }
 
     // --- 2. LOAD SWEETS (Correct Version) ---
-    async function loadSweets() {
+    async function loadSweets(query = '') {
         const grid = document.getElementById('sweets-grid');
         grid.innerHTML = '<p>Loading...</p>';
 
         try {
-            const response = await fetch('/api/sweets');
+            // Decide which API endpoint to hit
+            let url = '/api/sweets';
+            if (query) {
+                url = '/api/sweets/search?keyword=' + encodeURIComponent(query);
+            }
+
+            const response = await fetch(url);
             const sweets = await response.json();
 
             grid.innerHTML = '';
+
+            if (sweets.length === 0) {
+                grid.innerHTML = '<p>No sweets found.</p>';
+                return;
+            }
+
             sweets.forEach(sweet => {
                 const card = document.createElement('div');
                 card.className = 'card';
-                const img = sweet.imageUrl || 'https://via.placeholder.com/150';
+                const img = sweet.imageUrl || 'https://via.placeholder.com/150?text=Sweet';
+                const qty = sweet.quantity || 0;
+                const category = sweet.category || 'General'; // Show Category
 
-                // Base Card HTML
+                // CARD HTML
                 let cardHtml = `
                     <img src="${img}" alt="${sweet.name}">
                     <h3>${sweet.name}</h3>
+                    <div style="color: #888; font-size: 0.8em; text-transform: uppercase; margin-bottom: 5px;">
+                        ${category}
+                    </div>
                     <div class="price">$${sweet.price}</div>
+                    <div style="font-size: 0.9em; color: #555; margin-bottom: 10px;">
+                        <strong>Stock:</strong> ${qty} left
+                    </div>
                 `;
 
-                // LOGIC: Show different buttons based on Role
+                // BUTTON LOGIC
                 if (userRole === 'ROLE_ADMIN') {
-                    // Admin gets a DELETE button
                     cardHtml += `
-                        <button onclick="deleteSweet(${sweet.id})" style="background-color: #d32f2f;">🗑️ Delete</button>
+                        <button onclick="openEditModal(${sweet.id}, '${sweet.name}', '${category}', ${sweet.price}, ${qty})"
+                                style="background-color: #2196F3; margin-bottom: 5px; width: 100%;">✏️ Edit</button>
+                        <button onclick="deleteSweet(${sweet.id})"
+                                style="background-color: #d32f2f; width: 100%;">🗑️ Delete</button>
                     `;
                 } else {
-                    // Normal User gets ADD TO CART
-                    cardHtml += `
-                        <button onclick="addToCart(${sweet.id}, '${sweet.name}', ${sweet.price})">Add to Cart</button>
-                    `;
+                    if (qty > 0) {
+                        cardHtml += `<button onclick="addToCart(${sweet.id}, '${sweet.name}', ${sweet.price})">Add to Cart</button>`;
+                    } else {
+                        cardHtml += `<button disabled style="background-color: #ccc; cursor: not-allowed;">🚫 Out of Stock</button>`;
+                    }
                 }
 
                 card.innerHTML = cardHtml;
                 grid.appendChild(card);
             });
         } catch (error) {
-            console.error("Error loading sweets:", error);
+            console.error("Error:", error);
+            grid.innerHTML = '<p style="color:red">Error loading sweets.</p>';
+        }
+    }
+
+    // --- 2. SEARCH FUNCTIONS ---
+    function searchSweets() {
+        const query = document.getElementById('search-box').value;
+        loadSweets(query); // Re-uses the main loader with a query
+    }
+
+    function clearSearch() {
+        document.getElementById('search-box').value = '';
+        loadSweets(); // Reloads all
+    }
+
+    // --- 3. EDIT FUNCTIONS ---
+    function openEditModal(id, name, category, price, quantity) {
+        document.getElementById('edit-id').value = id;
+        document.getElementById('edit-name').value = name;
+        document.getElementById('edit-category').value = category;
+        document.getElementById('edit-price').value = price;
+        document.getElementById('edit-quantity').value = quantity;
+
+        document.getElementById('edit-modal').style.display = 'flex';
+    }
+
+    function closeEditModal() {
+        document.getElementById('edit-modal').style.display = 'none';
+    }
+
+    async function submitEdit() {
+        const id = document.getElementById('edit-id').value;
+        const name = document.getElementById('edit-name').value;
+        const category = document.getElementById('edit-category').value;
+
+        // --- CHECK THESE TWO LINES CAREFULLY ---
+        const price = document.getElementById('edit-price').value;      // Should match <input id="edit-price">
+        const quantity = document.getElementById('edit-quantity').value; // Should match <input id="edit-quantity">
+
+        // Validation to prevent empty errors
+        if (!id || !name || !price || !quantity) {
+            alert("Please fill all fields!");
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/sweets/' + id, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + authToken
+                },
+                body: JSON.stringify({
+                    name: name,
+                    category: category,
+                    price: parseFloat(price),      // Force Price to be a number (Decimal)
+                    quantity: parseInt(quantity)   // Force Quantity to be an Integer (Whole number)
+                })
+            });
+
+            if (response.ok) {
+                alert("Sweet Updated!");
+                closeEditModal();
+                loadSweets();
+            } else {
+                alert("Failed to update (Check Server Console)");
+            }
+        } catch (error) {
+            console.error(error);
         }
     }
 
@@ -367,28 +501,48 @@
 
     // --- 5. ADMIN FUNCTIONS ---
     async function addSweet() {
-        const name = document.getElementById('sweetName').value;
-        const price = document.getElementById('sweetPrice').value;
-        const imageUrl = document.getElementById('sweetImage').value;
+        // Get values using the FIXED IDs
+        const name = document.getElementById('sweet-name').value;
+        const price = document.getElementById('sweet-price').value;
+        const quantity = document.getElementById('sweet-quantity').value;
+        const image = document.getElementById('sweet-image').value;
         const msgDiv = document.getElementById('admin-msg');
+
+        if (!name || !price || !quantity) {
+            showMsg(msgDiv, "Please fill in Name, Price, and Quantity", false);
+            return;
+        }
 
         try {
             const response = await fetch('/api/sweets', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken },
-                body: JSON.stringify({ name, price, imageUrl })
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + authToken
+                },
+                body: JSON.stringify({
+                    name: name,
+                    price: price,
+                    quantity: quantity,
+                    imageUrl: image
+                })
             });
 
             if (response.ok) {
-                showMsg(msgDiv, 'Sweet Added!', true);
+                showMsg(msgDiv, "Sweet Added Successfully!", true);
+                // Clear inputs
+                document.getElementById('sweet-name').value = '';
+                document.getElementById('sweet-price').value = '';
+                document.getElementById('sweet-quantity').value = '50';
+                document.getElementById('sweet-image').value = '';
+                // Refresh grid to show new item immediately
                 loadSweets();
-                document.getElementById('sweetName').value = '';
-                document.getElementById('sweetPrice').value = '';
             } else {
-                showMsg(msgDiv, 'Failed (Are you Admin?)', false);
+                showMsg(msgDiv, "Failed to add sweet", false);
             }
         } catch (error) {
-            showMsg(msgDiv, 'Error adding sweet', false);
+            console.error(error);
+            showMsg(msgDiv, "Server Error", false);
         }
     }
 
@@ -437,6 +591,9 @@
         el.style.display = 'block';
         setTimeout(() => el.style.display = 'none', 3000);
     }
+
+
+
 </script>
 
 </body>

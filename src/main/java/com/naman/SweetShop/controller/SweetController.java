@@ -4,6 +4,7 @@ import com.naman.SweetShop.model.Sweet;
 import com.naman.SweetShop.service.SweetService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import com.naman.SweetShop.repo.SweetRepository;
 
 import java.net.URI;
 import java.util.List;
@@ -38,6 +39,17 @@ public class SweetController {
     public ResponseEntity<Void> deleteSweet(@PathVariable Long id) {
         sweetService.deleteSweet(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<Sweet> updateSweet(@PathVariable Long id, @RequestBody Sweet sweetDetails) {
+        Sweet updatedSweet = sweetService.updateSweet(id, sweetDetails);
+        return ResponseEntity.ok(updatedSweet);
+    }
+
+    @GetMapping("/search")
+    public List<Sweet> searchSweets(@RequestParam String keyword) {
+        return sweetService.searchSweets(keyword);
     }
 
 }

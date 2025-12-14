@@ -34,6 +34,15 @@ public class OrderService {
         Sweet sweet = sweetRepository.findById(sweetId)
                 .orElseThrow(() -> new RuntimeException("Sweet not found with id: " + sweetId));
 
+        int currentStock = (sweet.getQuantity() == null) ? 0 : sweet.getQuantity();
+
+        if (currentStock < quantity) {
+            throw new RuntimeException("Not enough stock for item: " + sweet.getName());
+        }
+
+        sweet.setQuantity(currentStock - quantity);
+        sweetRepository.save(sweet);
+
         BigDecimal total = sweet.getPrice().multiply(BigDecimal.valueOf(quantity));
         Order order = new Order(user, sweet, quantity, total);
         return orderRepository.save(order);
