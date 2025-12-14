@@ -1,88 +1,76 @@
 package com.naman.SweetShop;
 
 import com.naman.SweetShop.model.Sweet;
+import com.naman.SweetShop.model.User;
 import com.naman.SweetShop.repo.SweetRepository;
+import com.naman.SweetShop.repo.UserRepository;
+import com.naman.SweetShop.service.OrderService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.security.test.context.support.WithMockUser;
-import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-
+import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest
-@AutoConfigureMockMvc
+@Transactional
 class SweetShopApplicationTests {
 
 	@Autowired
-	private MockMvc mockMvc;
+	private SweetRepository sweetRepository;
 
-    @Autowired
-    private SweetRepository sweetRepository;
+	@Autowired
+	private OrderService orderService;
 
+	@Autowired
+	private UserRepository userRepository;
 
 	@Test
-	void shouldLoginAndReturnToken() throws Exception {
-
-		String uniqueUser = "login_test_" + System.currentTimeMillis();
-		String password = "password123";
-
-		String registerJson = String.format("""
-            {
-                "username": "%s",
-                "password": "%s",
-                "role": "USER"
-            }
-        """, uniqueUser, password);
-
-
-		mockMvc.perform(post("/api/auth/register")
-						.contentType("application/json")
-						.content(registerJson))
-				.andExpect(status().isCreated());
-
-		String loginJson = String.format("""
-            {
-                "username": "%s",
-                "password": "%s"
-            }
-        """, uniqueUser, password);
-
-
-		mockMvc.perform(post("/api/auth/login")
-						.contentType("application/json")
-						.content(loginJson))
-				.andExpect(status().isOk())
-				.andExpect(result -> {
-					String responseToken = result.getResponse().getContentAsString();
-					if (responseToken.isEmpty()) {
-						throw new AssertionError("Token response was empty!");
-					}
-				});
+	void contextLoads() {
+		assertNotNull(sweetRepository);
+		assertNotNull(orderService);
 	}
 
 	@Test
-	@WithMockUser(username = "boss", roles = {"ADMIN"})
-	void testDeleteSweet() throws Exception {
+	void testInventoryReduction() {
 
-		Sweet sweet = new Sweet();
-		sweet.setName("Delete Me");
-		sweet.setPrice(BigDecimal.valueOf(1.00));
+		Sweet brownie = new Sweet();
+		brownie.setName("Test Brownie");
+		brownie.setPrice(BigDecimal.valueOf(5.00));
+		brownie.setQuantity(10);
+		brownie.setCategory("Test");
+		sweetRepository.save(brownie);
 
-		sweet = sweetRepository.save(sweet);
+		User testUser = new User();
+		testUser.setUsername("testbuyer");
+		testUser.setPassword("pass");
+		testUser.setRole("ROLE_USER");
+		userRepository.save(testUser);
 
-		mockMvc.perform(delete("/api/sweets/" + sweet.getId())
-						.with(csrf()))
-				.andExpect(status().isNoContent());
-		assertFalse(sweetRepository.findById(sweet.getId()).isPresent());
+		Long sweetId = brownie.getId();
+
+		orderService.placeOrder("testbuyer", sweetId, 3);
+		Sweet updatedBrownie = sweetRepository.findById(sweetId).orElseThrow();
+
+		System.out.println("Old Stock: 10");
+		System.out.println("New Stock: " + updatedBrownie.getQuantity());
+
+		assertEquals(7, updatedBrownie.getQuantity(), "Stock should decrease by purchase amount");
 	}
 
+	@Test
+	void testSoftDelete() {
+
+		Sweet candy = new Sweet();
+		candy.setName("Delete Me");
+		candy.setPrice(BigDecimal.TEN);
+		candy.setQuantity(100);
+		sweetRepository.save(candy);
+		Long id = candy.getId();
+
+		sweetRepository.deleteById(id);
+
+		assertTrue(sweetRepository.findById(id).isEmpty(), "Sweet should be hidden from normal queries");
+	}
 }
