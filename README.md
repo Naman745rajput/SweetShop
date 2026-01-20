@@ -1,4 +1,4 @@
-# 🍬 The Sweet Shop API
+# 🍬 The Sweet Shop 
 
 A full-stack e-commerce application for selling authentic sweets. This project demonstrates a secure REST API with inventory management, soft deletion, and role-based access control (RBAC).
 
